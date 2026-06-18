@@ -20,9 +20,11 @@ SYSTEM_SCOPE.md
 deploy_prep.sh
 generar_despliegue.sh
 .kilo/
-# Config local del despliegue (URLs/branches reales); el ejemplo SÍ se versiona:
+# Config local del despliegue (URLs/branches reales); los ejemplos SÍ se versionan:
 deploy.config.sh
+deploy.config.ps1
 !deploy.config.example.sh
+!deploy.config.example.ps1
 
 # -----------------------------------------------------------------------------
 # 🔐 CREDENCIALES Y VARIABLES DE ENTORNO

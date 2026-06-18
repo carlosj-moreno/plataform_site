@@ -14,8 +14,9 @@ plataform_site/
 │   ├── backend/  engine/  frontend/
 │   └── README.md             # operación detallada del stack
 ├── .env.docker.example       # plantilla de variables (sin secretos)
-├── deploy.config.example.sh  # plantilla: URLs de los repos privados
-└── deploy.sh                 # despliegue en el servidor (clona privados + compose)
+├── deploy.config.example.*   # plantilla: URLs de los repos privados (.sh y .ps1)
+├── deploy.sh                 # despliegue en servidor Linux (clona privados + compose)
+└── deploy.ps1                # despliegue en servidor Windows (Docker Desktop)
 ```
 
 ## Qué NO se sube (ya cubierto por `.gitignore`)
