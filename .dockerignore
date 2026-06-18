@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .dockerignore raíz — aplica a todos los build contexts (los 3 Dockerfiles
+# usan `context: .`). Excluye lo que NO debe entrar a ninguna imagen.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# VCS / IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+.claude/
+
+# Build artifacts / dependencias locales — se regeneran dentro de la imagen
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/node_modules/
+**/venv/
+**/.venv/
+**/dist/
+**/build/
+**/static_files/
+Frontend/bootwhatsapp_frontend/dist/
+Frontend/bootwhatsapp_frontend/engine/.wwebjs_auth/
+
+# Bases de datos / fixtures locales
+**/db.sqlite3
+**/data_backup.json
+
+# Secretos — NUNCA entran a la imagen; se inyectan vía .env de compose
+**/.env
+**/.env.*
+!**/.env.example
+
+# Runtime / media (volúmenes lo cubren en compose)
+Backend/bootwhatsapp/media/
+
+# Empaquetados del flujo manual de despliegue
+*.zip
+backend.zip
+backend_deploy.zip
+engine.zip
+engine_deploy.zip
+frontend.zip
+frontend_deploy.zip
+deploy_prep.sh
+generar_despliegue.sh
+LANZAR_CRM.bat
+servidor_local.bat
+
+# Docs y notas — no se necesitan en runtime
+**/*.md
+!docker/README.md

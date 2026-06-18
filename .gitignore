@@ -1,0 +1,130 @@
+# =============================================================================
+# .gitignore RAÍZ — BootWhatsapp (cubre Backend, Frontend, engine y raíz)
+# Objetivo: NUNCA subir credenciales, datos sensibles ni prompts de negocio.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 📦 CÓDIGO PRIVADO DE LA APP — vive en SUS PROPIOS repos privados
+# Este repo (plataform_site) aloja SOLO la configuración de Docker/despliegue.
+# El servidor clona Backend/ y Frontend/ con `deploy.sh` (llave SSH). Localmente
+# las carpetas existen para construir, pero NUNCA se suben a este repo.
+# -----------------------------------------------------------------------------
+/Backend/
+/Frontend/
+
+# -----------------------------------------------------------------------------
+# 🗂️  HELPERS Y NOTAS LOCALES — no son configuración de Docker
+# -----------------------------------------------------------------------------
+SYSTEM_SCOPE.md
+*.bat
+deploy_prep.sh
+generar_despliegue.sh
+.kilo/
+# Config local del despliegue (URLs/branches reales); el ejemplo SÍ se versiona:
+deploy.config.sh
+!deploy.config.example.sh
+
+# -----------------------------------------------------------------------------
+# 🔐 CREDENCIALES Y VARIABLES DE ENTORNO
+# -----------------------------------------------------------------------------
+.env
+.env.*
+*.env
+# Los ejemplos con placeholders SÍ se versionan:
+!.env.example
+!.env.docker.example
+
+# Tokens / claves sueltas
+*.pem
+*.key
+secrets.*
+
+# -----------------------------------------------------------------------------
+# 🗄️  BASES DE DATOS Y VOLCADOS DE DATOS
+# -----------------------------------------------------------------------------
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+# Fixture con TODOS los datos (clientes, mensajes, tokens):
+data_backup.json
+*.dump
+*.bak
+
+# -----------------------------------------------------------------------------
+# 🤖 PROMPTS DE NEGOCIO (contenido generado por empresa/agente)
+# -----------------------------------------------------------------------------
+.prompts_store/
+
+# -----------------------------------------------------------------------------
+# 📱 SESIONES DE WHATSAPP (credenciales de cuenta — permiten suplantar la línea)
+# -----------------------------------------------------------------------------
+.wwebjs_auth/
+.wwebjs_cache/
+
+# -----------------------------------------------------------------------------
+# 🖼️  MEDIA SUBIDA POR CLIENTES (audios, imágenes, documentos)
+# -----------------------------------------------------------------------------
+media/
+
+# -----------------------------------------------------------------------------
+# 📦 BUNDLES DE DESPLIEGUE (pueden contener db.sqlite3 y settings locales)
+# -----------------------------------------------------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# -----------------------------------------------------------------------------
+# ⚙️  CLAUDE CODE — fuera de este repo (revela rutas/estructura interna)
+# -----------------------------------------------------------------------------
+.claude/
+.claudeignore
+
+# -----------------------------------------------------------------------------
+# 🐍 PYTHON / DJANGO
+# -----------------------------------------------------------------------------
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+local_settings.py
+*.log
+static_files/
+staticfiles/
+static_root/
+
+# -----------------------------------------------------------------------------
+# 🟢 NODE / FRONTEND
+# -----------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------------------------------------------------------
+# 🧪 TESTING / COBERTURA
+# -----------------------------------------------------------------------------
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+
+# -----------------------------------------------------------------------------
+# 💻 IDE / EDITORES / SO
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,118 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# BootWhatsapp — stack completo (Backend + Engine + Frontend)
+# PostgreSQL es externo (no se levanta aquí). Configurar DB_* en .env.
+#
+# Uso rápido:
+#   cp .env.docker.example .env
+#   # editar .env con secretos reales
+#   docker compose up -d --build
+#
+# Acceso:
+#   Frontend (nginx):  http://localhost:8080
+#   Backend (directo): http://localhost:8000  (solo para debug, normalmente
+#                                              se accede vía nginx → /api/)
+#   Engine (interno):  http://engine:3001     (no expuesto a host por defecto)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: bootwhatsapp
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    image: bootwhatsapp-backend:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Sobrescribe lo que NO debe venir del .env de la app:
+      # - El engine vive en el mismo network bajo el hostname "engine"
+      WHATSAPP_ENGINE_URL: http://engine:3001
+      # - Caché de visión en un volumen dedicado: cada documento se procesa con
+      #   Qwen UNA sola vez y persiste entre redeploys (no se re-paga la extracción).
+      VISION_CACHE_DIR: /app/.vision_cache
+      # - Cuando DB_HOST en .env apunta a "host.docker.internal" o a una IP de
+      #   Postgres administrado, este bloque no toca nada. Si querés forzar
+      #   "host.docker.internal" desde compose, descomenta:
+      # DB_HOST: host.docker.internal
+    volumes:
+      # Media bind-mount: los adjuntos de WhatsApp viven en el filesystem del
+      # host (sobrevive `docker compose down -v`, accesible para backups y para
+      # leer archivos antiguos cargados antes del stack dockerizado).
+      - ./Backend/bootwhatsapp/media:/app/media
+      - backend_static:/app/static_files
+      # Prompts por empresa (IP de negocio — se monta como bind para editar en
+      # caliente sin rebuild). Comentar si no se usan.
+      - ./Backend/bootwhatsapp/.prompts_store:/app/.prompts_store
+      # Caché persistente de extracciones de visión (Qwen) entre redeploys.
+      - vision_cache:/app/.vision_cache
+    ports:
+      - "8000:8000"
+    depends_on:
+      engine:
+        condition: service_started
+    # Permite que el contenedor resuelva el Postgres del host Windows/Mac
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # DNS público para resoluciones EXTERNAS (ej. fuentes externas como
+    # systemasnet.com tras Cloudflare). El resolver embebido de Docker Desktop
+    # (127.0.0.11 → host) fallaba intermitentemente ("No address associated with
+    # hostname"). Forzar 1.1.1.1/8.8.8.8 lo estabiliza. La resolución de
+    # servicios internos (engine/backend) sigue por el DNS embebido de la red.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    networks:
+      - botnet
+
+  engine:
+    build:
+      context: .
+      dockerfile: docker/engine/Dockerfile
+    image: bootwhatsapp-engine:latest
+    restart: unless-stopped
+    environment:
+      PORT: "3001"
+      DJANGO_URL: http://backend:8000
+      # Mismo valor que WHATSAPP_ENGINE_SECRET del backend
+      ENGINE_SECRET: ${WHATSAPP_ENGINE_SECRET:?Define WHATSAPP_ENGINE_SECRET en .env}
+    volumes:
+      # CRÍTICO: persistencia de sesiones WhatsApp escaneadas (sin esto, hay
+      # que re-escanear el QR cada vez que reinicia el contenedor)
+      - engine_sessions:/app/.wwebjs_auth
+    # No exponemos 3001 al host por defecto — el backend lo alcanza por la red
+    # interna como "engine:3001". Si querés debuggear desde fuera, descomenta:
+    # ports:
+    #   - "3001:3001"
+    # Chromium consume memoria; libera /dev/shm para evitar crashes
+    shm_size: "1gb"
+    networks:
+      - botnet
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_WS_URL: ""
+        VITE_POLLING_INTERVAL: "5000"
+        VITE_APP_ENV: production
+    image: bootwhatsapp-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - botnet
+
+volumes:
+  backend_static:
+  engine_sessions:
+  vision_cache:
+
+networks:
+  botnet:
+    driver: bridge
