@@ -12,8 +12,9 @@ BACKEND_REPO="git@github.com:carlosj-moreno/bootwhatsapp.git"
 FRONTEND_REPO="git@github.com:carlosj-moreno/bootwhatsapp_frontend.git"
 
 # Rama a desplegar de cada repo (los repos tienen main y develop).
-BACKEND_BRANCH="main"
-FRONTEND_BRANCH="main"
+# El trabajo activo está en develop.
+BACKEND_BRANCH="develop"
+FRONTEND_BRANCH="develop"
 
 # Carpetas destino — deben coincidir EXACTAMENTE con lo que copian los Dockerfiles.
 #   - backend  : COPY Backend/bootwhatsapp/...        (manage.py está en la raíz
