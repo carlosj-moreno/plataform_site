@@ -1,0 +1,8 @@
+# Los scripts y archivos de config se ejecutan en Linux (servidor / contenedores):
+# forzar fin de línea LF para que el shebang no rompa por CRLF de Windows.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.conf          text eol=lf
+*.yml           text eol=lf
+.env.*          text eol=lf
+entrypoint.sh   text eol=lf
