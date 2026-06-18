@@ -8,20 +8,21 @@
 
 # URLs SSH de los repos privados (formato git@github.com:owner/repo.git).
 # El servidor se autentica con una llave SSH (deploy key) de solo-lectura.
-BACKEND_REPO="git@github.com:carlosj-moreno/REEMPLAZA-backend.git"
-FRONTEND_REPO="git@github.com:carlosj-moreno/REEMPLAZA-frontend.git"
+BACKEND_REPO="git@github.com:carlosj-moreno/bootwhatsapp.git"
+FRONTEND_REPO="git@github.com:carlosj-moreno/bootwhatsapp_frontend.git"
 
-# Rama a desplegar de cada repo.
+# Rama a desplegar de cada repo (los repos tienen main y develop).
 BACKEND_BRANCH="main"
 FRONTEND_BRANCH="main"
 
-# Carpetas destino (deben coincidir con lo que esperan los Dockerfiles):
-#   - El Dockerfile del backend hace COPY Backend/bootwhatsapp/...
-#     => el repo de Backend debe contener la carpeta "bootwhatsapp/" en su raíz.
-#   - Los Dockerfiles de frontend/engine hacen COPY Frontend/bootwhatsapp_frontend/...
-#     => el repo de Frontend debe contener "bootwhatsapp_frontend/" en su raíz.
-BACKEND_DIR="Backend"
-FRONTEND_DIR="Frontend"
+# Carpetas destino — deben coincidir EXACTAMENTE con lo que copian los Dockerfiles.
+#   - backend  : COPY Backend/bootwhatsapp/...        (manage.py está en la raíz
+#                 del repo "bootwhatsapp", así que se clona dentro de bootwhatsapp/)
+#   - frontend : COPY Frontend/bootwhatsapp_frontend/...
+#   - engine   : COPY Frontend/bootwhatsapp_frontend/engine/...  (viene en el repo
+#                 del frontend, no es un repo aparte)
+BACKEND_DIR="Backend/bootwhatsapp"
+FRONTEND_DIR="Frontend/bootwhatsapp_frontend"
 
 # (Opcional) Llave SSH específica para clonar. Si se deja vacío se usa el
 # ssh-agent / la llave por defecto (~/.ssh/id_ed25519). El passphrase de esta
