@@ -29,10 +29,16 @@ Editar `.env` con los valores reales. **Variables obligatorias** (sin ellas el b
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `DB_PASSWORD` | El password del rol `bootwhatsapp_user` en tu Postgres |
 | `WHATSAPP_API_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `META_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET` | Meta Developers → tu App → WhatsApp |
-| `GEMINI_API_KEY` o `GROQ_API_KEY` | Provider de IA (settings.py exige una) |
-| `INTEGRATION_SALT` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
-| `FERNET_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `GROQ_API_KEY` | Provider de IA principal → https://console.groq.com/keys |
 | `WHATSAPP_ENGINE_SECRET` | Cualquier string largo aleatorio — backend y engine lo comparten |
+
+Recomendadas (la app arranca sin ellas, pero faltan funciones):
+
+| Variable | Para qué |
+|---|---|
+| `FERNET_KEY` | Cifra el access_token de las conexiones en la BD. `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` — **no la cambies** si ya hay conexiones guardadas |
+| `TOGETHER_API_KEY` | Visión de imágenes (facturas DIAN, validación de documentos) + respaldo de texto |
+| `INTEGRATION_SALT` | Solo si usas el gateway de Aliados. `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 
 **`DB_HOST` según dónde corra Postgres:**
 
