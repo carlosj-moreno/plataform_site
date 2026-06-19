@@ -42,29 +42,28 @@ case "$BACKEND_REPO$FRONTEND_REPO" in
         ;;
 esac
 
-# ── 2. Acceso SSH a los repos privados ───────────────────────────────────────
-# Si se indicó una llave específica, úsala para todas las operaciones git.
-if [ -n "${SSH_KEY:-}" ]; then
-    export GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes"
-fi
-
-echo "→ Verificando acceso SSH a GitHub..."
-# `ssh -T git@github.com` devuelve 1 incluso cuando la auth es correcta
-# (GitHub no da shell), por eso miramos el mensaje, no el código de salida.
-ssh_out=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)
-case "$ssh_out" in
-    *"successfully authenticated"*)
-        echo "  ✓ SSH OK"
+# ── 2. Acceso a los repos privados ───────────────────────────────────────────
+# Solo se valida SSH si las URLs son SSH (git@.../ssh://). Con HTTPS, git pide
+# las credenciales por su cuenta (Credential Manager / token) y las cachea.
+case "$BACKEND_REPO" in
+    git@*|ssh://*)
+        if [ -n "${SSH_KEY:-}" ]; then
+            export GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes"
+        fi
+        echo "→ Verificando acceso SSH a GitHub..."
+        # `ssh -T git@github.com` devuelve 1 aun con auth correcta (GitHub no da
+        # shell), por eso miramos el mensaje, no el código de salida.
+        ssh_out=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)
+        case "$ssh_out" in
+            *"successfully authenticated"*) echo "  ✓ SSH OK" ;;
+            *)
+                echo "  ! La llave SSH no está en el agente; cargándola (pedirá la clave)..."
+                if [ -n "${SSH_KEY:-}" ]; then ssh-add "$SSH_KEY"; else ssh-add; fi
+                ;;
+        esac
         ;;
     *)
-        echo "  ! La llave SSH no está disponible para el agente."
-        echo "    Cargándola con ssh-add (te pedirá la clave/passphrase)..."
-        # Esto es "pedir la clave": el passphrase de la deploy key.
-        if [ -n "${SSH_KEY:-}" ]; then
-            ssh-add "$SSH_KEY"
-        else
-            ssh-add
-        fi
+        echo "→ Repos por HTTPS (git gestiona las credenciales)."
         ;;
 esac
 

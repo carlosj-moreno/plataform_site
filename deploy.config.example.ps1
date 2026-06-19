@@ -5,12 +5,14 @@
 #   deploy.config.ps1 está en .gitignore (no se sube).
 # ─────────────────────────────────────────────────────────────────────────────
 
-# URLs SSH de los repos privados. El servidor se autentica con una llave SSH
-# (deploy key) de solo-lectura. Si configuraste alias por repo en ~/.ssh/config
-# usa "git@github-backend:..." / "git@github-frontend:..."; si usas una sola
-# llave de cuenta con acceso a ambos, deja "git@github.com:...".
-$BackendRepo   = "git@github.com:carlosj-moreno/bootwhatsapp.git"
-$FrontendRepo  = "git@github.com:carlosj-moreno/bootwhatsapp_frontend.git"
+# URLs de los repos privados.
+# Por defecto HTTPS: el Administrador de Credenciales de Git (viene con Git for
+# Windows) pide login a GitHub la PRIMERA vez (ventana del navegador) y lo cachea.
+# Como los repos son tuyos, tienes acceso completo. No requiere llaves SSH.
+$BackendRepo   = "https://github.com/carlosj-moreno/bootwhatsapp.git"
+$FrontendRepo  = "https://github.com/carlosj-moreno/bootwhatsapp_frontend.git"
+# Alternativa SSH (si prefieres deploy keys): usa
+#   "git@github.com:carlosj-moreno/bootwhatsapp.git"  (+ ~/.ssh/config con la llave)
 
 # Rama a desplegar (el trabajo activo está en develop).
 $BackendBranch  = "develop"

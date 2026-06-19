@@ -28,41 +28,46 @@ plataform_site/
 
 ## Despliegue en el servidor
 
-El servidor se autentica a los repos privados con una **llave SSH (deploy key)**
-de solo-lectura. El script pide la clave (passphrase de la llave) solo si no
-está cargada en el agente SSH.
+Por defecto los repos privados se clonan por **HTTPS**: git pide las credenciales
+de GitHub la **primera vez** y las cachea (en Windows, Git Credential Manager abre
+el navegador; en Linux, un token/PAT). Como los repos son de la misma cuenta, hay
+acceso completo. No requiere llaves SSH.
 
-```bash
-git clone git@github.com:carlosj-moreno/plataform_site.git
+**Windows (Docker Desktop):**
+```powershell
+git clone https://github.com/carlosj-moreno/plataform_site.git
 cd plataform_site
 
-cp deploy.config.example.sh deploy.config.sh   # ya trae las URLs reales; ajusta la rama si hace falta
-cp .env.docker.example .env                     # secretos reales
+Copy-Item deploy.config.example.ps1 deploy.config.ps1   # URLs reales (HTTPS); ajusta rama si hace falta
+Copy-Item .env.docker.example .env                       # secretos reales
 
-./deploy.sh        # clona/actualiza privados → docker compose up -d --build
+.\deploy.ps1        # clona/actualiza privados → docker compose up -d --build
+```
+
+**Linux:**
+```bash
+git clone https://github.com/carlosj-moreno/plataform_site.git
+cd plataform_site
+cp deploy.config.example.sh deploy.config.sh
+cp .env.docker.example .env
+./deploy.sh
 ```
 
 > Los repos privados se clonan **dentro** de `Backend/bootwhatsapp/` y
 > `Frontend/bootwhatsapp_frontend/` (no en la raíz de `Backend/`/`Frontend/`),
 > porque la raíz de cada repo es directamente el proyecto Django / la app Vite.
 
-Re-desplegar tras un cambio: `./deploy.sh` (vuelve a hacer pull + rebuild).
+Re-desplegar tras un cambio: `.\deploy.ps1` / `./deploy.sh` (pull + rebuild).
 
-### Llave SSH (deploy key) en el servidor — una sola vez
+### Alternativa: token (PAT) o llave SSH
 
-```bash
-ssh-keygen -t ed25519 -C "deploy@servidor" -f ~/.ssh/id_deploy
-cat ~/.ssh/id_deploy.pub   # añadir como Deploy Key (read-only) en cada repo privado
-```
-
-Añade `~/.ssh/id_deploy.pub` como **Deploy Key (read-only)** en los dos repos
-privados (`bootwhatsapp` y `bootwhatsapp_frontend`). Luego en `deploy.config.sh`
-apunta `SSH_KEY="$HOME/.ssh/id_deploy"` (o cárgala con `ssh-add ~/.ssh/id_deploy`).
-
-> Nota: una deploy key de GitHub sirve para **un** repo. Para dos repos, o usas
-> dos llaves (una por repo) o marcas la misma como "machine user"/usas una llave
-> de cuenta con acceso a ambos. Lo más simple: dos deploy keys y un bloque por
-> host en `~/.ssh/config`.
+- **Token (PAT)** — servidor sin navegador: crea un *fine-grained token* con
+  permiso `Contents: Read-only` sobre ambos repos y úsalo como contraseña cuando
+  git lo pida (o guárdalo con `git config --global credential.helper store`).
+- **Llave SSH (deploy key)** — cambia las URLs de `deploy.config.*` a
+  `git@github.com:...`. Una deploy key sirve para **un** repo; para dos, usa dos
+  llaves con bloques por host en `~/.ssh/config`, o una llave de cuenta con acceso
+  a ambos.
 
 Para la operación día a día (logs, migraciones, volúmenes, webhook de Meta)
 ver [docker/README.md](docker/README.md).

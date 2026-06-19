@@ -6,10 +6,13 @@
 # los repositorios PRIVADOS de la app y la rama a desplegar.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# URLs SSH de los repos privados (formato git@github.com:owner/repo.git).
-# El servidor se autentica con una llave SSH (deploy key) de solo-lectura.
-BACKEND_REPO="git@github.com:carlosj-moreno/bootwhatsapp.git"
-FRONTEND_REPO="git@github.com:carlosj-moreno/bootwhatsapp_frontend.git"
+# URLs de los repos privados.
+# Por defecto HTTPS: git pide credenciales la primera vez (Git Credential Manager
+# en Windows abre el navegador; en Linux usa un token/PAT) y las cachea. Como los
+# repos son tuyos, tienes acceso completo. No requiere llaves SSH.
+BACKEND_REPO="https://github.com/carlosj-moreno/bootwhatsapp.git"
+FRONTEND_REPO="https://github.com/carlosj-moreno/bootwhatsapp_frontend.git"
+# Alternativa SSH (deploy keys): "git@github.com:carlosj-moreno/bootwhatsapp.git"
 
 # Rama a desplegar de cada repo (los repos tienen main y develop).
 # El trabajo activo está en develop.
