@@ -59,11 +59,33 @@ cp .env.docker.example .env
 
 Re-desplegar tras un cambio: `.\deploy.ps1` / `./deploy.sh` (pull + rebuild).
 
-### Alternativa: token (PAT) o llave SSH
+### Portátil entre máquinas/servidores: token en la config (recomendado)
 
-- **Token (PAT)** — servidor sin navegador: crea un *fine-grained token* con
-  permiso `Contents: Read-only` sobre ambos repos y úsalo como contraseña cuando
-  git lo pida (o guárdalo con `git config --global credential.helper store`).
+Para que cada máquina nueva clone **sola** (sin login en el navegador), pon un
+**GitHub Personal Access Token** (fine-grained, `Contents: Read-only` sobre los 2
+repos) en `deploy.config.ps1` / `deploy.config.sh`:
+
+```powershell
+$GitHubToken = "github_pat_xxx"   # Windows (deploy.config.ps1)
+```
+```bash
+GITHUB_TOKEN="github_pat_xxx"     # Linux (deploy.config.sh)
+```
+
+El script inyecta el token solo al clonar/actualizar y **no lo deja guardado** en
+`.git/config`. Como `deploy.config.*` está en `.gitignore`, el token no se sube.
+
+**Provisionar una máquina nueva** entonces es:
+```
+git clone https://github.com/carlosj-moreno/plataform_site.git
+# copiar deploy.config.(ps1|sh) + .env a esta máquina
+.\deploy.ps1   # o ./deploy.sh   → clona todo sin pedir nada
+```
+
+### Otras alternativas
+
+- **Sin token** — git pide login la primera vez (Credential Manager abre el
+  navegador en Windows) y lo cachea. Cómodo en una sola máquina con escritorio.
 - **Llave SSH (deploy key)** — cambia las URLs de `deploy.config.*` a
   `git@github.com:...`. Una deploy key sirve para **un** repo; para dos, usa dos
   llaves con bloques por host en `~/.ssh/config`, o una llave de cuenta con acceso

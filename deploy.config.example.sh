@@ -28,6 +28,12 @@ FRONTEND_BRANCH="develop"
 BACKEND_DIR="Backend/bootwhatsapp"
 FRONTEND_DIR="Frontend/bootwhatsapp_frontend"
 
+# Acceso sin login interactivo (recomendado para servidores / varias máquinas):
+# pega un GitHub PAT (fine-grained) con Contents: Read-only sobre los 2 repos.
+# Este archivo (deploy.config.sh) está en .gitignore. Vacío = git pide
+# credenciales la primera vez.
+GITHUB_TOKEN=""
+
 # (Opcional) Llave SSH específica para clonar. Si se deja vacío se usa el
 # ssh-agent / la llave por defecto (~/.ssh/id_ed25519). El passphrase de esta
 # llave es "la clave" que se pide al desplegar si la llave no está en el agente.

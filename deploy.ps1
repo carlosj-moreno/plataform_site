@@ -36,6 +36,15 @@ if ($SshKey) {
     $env:GIT_SSH_COMMAND = "ssh -i `"$SshKey`" -o IdentitiesOnly=yes"
 }
 
+# Token opcional para clonar por HTTPS sin login interactivo (portátil).
+if (-not (Get-Variable -Name GitHubToken -ValueOnly -ErrorAction SilentlyContinue)) { $GitHubToken = "" }
+function Get-AuthUrl($url) {
+    if ($GitHubToken -and $url -like "https://*") {
+        return ($url -replace '^https://', "https://x-access-token:$GitHubToken@")
+    }
+    return $url
+}
+
 # ── 2. Comprobar herramientas ────────────────────────────────────────────────
 foreach ($tool in "git","docker") {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
@@ -45,15 +54,19 @@ foreach ($tool in "git","docker") {
 
 # ── 3. Clonar o actualizar los repos privados ────────────────────────────────
 function Sync-Repo($repo, $branch, $dir) {
+    $auth = Get-AuthUrl $repo
     if (Test-Path (Join-Path $dir ".git")) {
         Write-Host "-> Actualizando $dir ($branch)..." -ForegroundColor Cyan
-        git -C $dir fetch --depth 1 origin $branch
-        git -C $dir checkout -f $branch
-        git -C $dir reset --hard "origin/$branch"
+        git -C $dir fetch --depth 1 $auth $branch
+        if ($LASTEXITCODE -ne 0) { throw "git fetch falló para $dir" }
+        git -C $dir checkout -B $branch FETCH_HEAD
     } else {
         Write-Host "-> Clonando $repo -> $dir ($branch)..." -ForegroundColor Cyan
         if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
-        git clone --depth 1 --branch $branch $repo $dir
+        git clone --depth 1 --branch $branch $auth $dir
+        if ($LASTEXITCODE -ne 0) { throw "git clone falló para $dir" }
+        # No dejar el token guardado en .git/config:
+        if ($GitHubToken) { git -C $dir remote set-url origin $repo }
     }
     if ($LASTEXITCODE -ne 0) { throw "git falló para $dir" }
 }

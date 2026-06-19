@@ -68,17 +68,32 @@ case "$BACKEND_REPO" in
 esac
 
 # ── 3. Clonar o actualizar los repos privados ────────────────────────────────
+# Inyecta el token en URLs HTTPS para clonar sin login interactivo (portátil).
+auth_url() {
+    url="$1"
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        case "$url" in
+            https://*)
+                printf '%s' "$url" | sed "s#https://#https://x-access-token:${GITHUB_TOKEN}@#"
+                return ;;
+        esac
+    fi
+    printf '%s' "$url"
+}
+
 sync_repo() {
     repo="$1"; branch="$2"; dir="$3"
+    auth=$(auth_url "$repo")
     if [ -d "$dir/.git" ]; then
         echo "→ Actualizando $dir ($branch)..."
-        git -C "$dir" fetch --depth 1 origin "$branch"
-        git -C "$dir" checkout -f "$branch"
-        git -C "$dir" reset --hard "origin/$branch"
+        git -C "$dir" fetch --depth 1 "$auth" "$branch"
+        git -C "$dir" checkout -B "$branch" FETCH_HEAD
     else
         echo "→ Clonando $repo → $dir ($branch)..."
         rm -rf "$dir"
-        git clone --depth 1 --branch "$branch" "$repo" "$dir"
+        git clone --depth 1 --branch "$branch" "$auth" "$dir"
+        # No dejar el token guardado en .git/config:
+        [ -n "${GITHUB_TOKEN:-}" ] && git -C "$dir" remote set-url origin "$repo"
     fi
 }
 

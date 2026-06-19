@@ -23,5 +23,14 @@ $FrontendBranch = "develop"
 $BackendDir   = "Backend/bootwhatsapp"
 $FrontendDir  = "Frontend/bootwhatsapp_frontend"
 
+# ─── Acceso sin login interactivo (recomendado para servidores / varias máquinas) ───
+# Pega aquí un GitHub Personal Access Token (fine-grained) con permiso
+#   Repository access: los 2 repos  +  Contents: Read-only
+# Así el clone funciona solo, sin abrir navegador. Este archivo (deploy.config.ps1)
+# está en .gitignore, por eso el token no se sube. Para una máquina nueva:
+# copia deploy.config.ps1 + .env y ejecuta .\deploy.ps1.
+# Déjalo vacío para usar el login interactivo del navegador (Credential Manager).
+$GitHubToken = ""
+
 # (Opcional) Llave SSH específica. Vacío = usa la llave por defecto / ssh-agent.
 $SshKey = ""
