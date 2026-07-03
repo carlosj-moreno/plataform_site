@@ -5,9 +5,9 @@
 
 # -----------------------------------------------------------------------------
 # 📦 CÓDIGO PRIVADO DE LA APP — vive en SUS PROPIOS repos privados
-# Este repo (plataform_site) aloja SOLO la configuración de Docker/despliegue.
-# El servidor clona Backend/ y Frontend/ con `deploy.sh` (llave SSH). Localmente
-# las carpetas existen para construir, pero NUNCA se suben a este repo.
+# Este repo (plataform_site) aloja SOLO la configuración del despliegue.
+# El servidor clona Backend/ y Frontend/ con `deploy.ps1` (HTTPS+token o SSH).
+# Localmente las carpetas existen para construir, pero NUNCA se suben a este repo.
 # -----------------------------------------------------------------------------
 /Backend/
 /Frontend/
@@ -17,13 +17,14 @@
 # -----------------------------------------------------------------------------
 SYSTEM_SCOPE.md
 *.bat
+# Entradas de un-clic (SÍ se versionan):
+!instalar.bat
+!iniciar.bat
 deploy_prep.sh
 generar_despliegue.sh
 .kilo/
-# Config local del despliegue (URLs/branches reales); los ejemplos SÍ se versionan:
-deploy.config.sh
+# Config local del despliegue (URLs/branches/token reales); el ejemplo SÍ se versiona:
 deploy.config.ps1
-!deploy.config.example.sh
 !deploy.config.example.ps1
 
 # -----------------------------------------------------------------------------
@@ -34,7 +35,7 @@ deploy.config.ps1
 *.env
 # Los ejemplos con placeholders SÍ se versionan:
 !.env.example
-!.env.docker.example
+!.env.native.example
 
 # Tokens / claves sueltas
 *.pem
@@ -98,6 +99,14 @@ local_settings.py
 static_files/
 staticfiles/
 static_root/
+
+# -----------------------------------------------------------------------------
+# 🛠️  HERRAMIENTAS Y LOGS DEL DESPLIEGUE NATIVO
+# -----------------------------------------------------------------------------
+# caddy.exe / nssm.exe descargados por native\get-tools.ps1
+bin/
+# stdout/stderr de los servicios (bootwa-*.log)
+logs/
 
 # -----------------------------------------------------------------------------
 # 🟢 NODE / FRONTEND

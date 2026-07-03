@@ -1,95 +1,90 @@
-# plataform_site — Configuración de Docker / Despliegue
+# plataform_site — Despliegue local (Windows, sin Docker)
 
-Este repositorio aloja **solo la configuración de Docker y despliegue** de la
-plataforma. **No contiene el código de la aplicación**, que vive en sus propios
-**repositorios privados**:
+Configuración para **ejecutar BootWhatsapp en local** (en tu PC o tu servidor
+Windows) **sin Docker, sin Caddy, sin servicios y sin instalar software de
+terceros**. Solo usa lo que ya tienes: **Git, Node.js y Python**.
 
-- Backend Django → `github.com/carlosj-moreno/bootwhatsapp` → se clona en `Backend/bootwhatsapp/`
-- Frontend React + engine → `github.com/carlosj-moreno/bootwhatsapp_frontend` → se clona en `Frontend/bootwhatsapp_frontend/`
+El código de la app vive en repos privados que se clonan:
+- Backend Django → `github.com/carlosj-moreno/bootwhatsapp` → `Backend/bootwhatsapp/`
+- Frontend React + engine → `github.com/carlosj-moreno/bootwhatsapp_frontend` → `Frontend/bootwhatsapp_frontend/`
 
-```
-plataform_site/
-├── docker-compose.yml        # orquestación de los 3 servicios
-├── docker/                   # Dockerfiles + nginx + entrypoint
-│   ├── backend/  engine/  frontend/
-│   └── README.md             # operación detallada del stack
-├── .env.docker.example       # plantilla de variables (sin secretos)
-├── deploy.config.example.*   # plantilla: URLs de los repos privados (.sh y .ps1)
-├── deploy.sh                 # despliegue en servidor Linux (clona privados + compose)
-└── deploy.ps1                # despliegue en servidor Windows (Docker Desktop)
-```
+## Cómo corre
 
-## Qué NO se sube (ya cubierto por `.gitignore`)
+Tres procesos normales (sin servicios). **Solo se usa el puerto del frontend (8080)**;
+el backend y el engine quedan internos:
 
-- `Backend/` y `Frontend/` → código privado, se clona en el servidor.
-- `.env`, `*.key`, `*.pem`, `secrets.*` → secretos reales.
-- Sesiones de WhatsApp (`.wwebjs_auth/`), media de clientes, prompts de negocio.
-- `deploy.config.sh` → URLs/ramas reales (el `.example` sí se versiona).
+| Proceso | Tecnología | Puerto |
+|---|---|---|
+| **Frontend** | `native\serve.py` (Python stdlib): sirve el build **y** hace de proxy | **8080** ← abre esto |
+| **Backend** | Django + waitress | 8000 (interno) |
+| **Engine** | Node (WhatsApp) | 3001 (interno) |
 
-## Despliegue en el servidor
+`serve.py` reenvía `/api`, `/media`, `/static` y `/webhook` al backend, así que el
+frontend, la API y **los documentos (`/media`) están en el mismo origen** → cargan
+sin proxy externo y sin depender de CORS. **PostgreSQL es externo** en `localhost:5432`.
 
-Por defecto los repos privados se clonan por **HTTPS**: git pide las credenciales
-de GitHub la **primera vez** y las cachea (en Windows, Git Credential Manager abre
-el navegador; en Linux, un token/PAT). Como los repos son de la misma cuenta, hay
-acceso completo. No requiere llaves SSH.
+## Requisitos (deben existir; no se instalan solos)
 
-**Windows (Docker Desktop):**
+- **Git**, **Node.js** (con `npm`), **Python 3.14** (`py -3.14`)
+- **PostgreSQL** corriendo en `localhost` con la BD/rol creados
+
+## Uso — un solo comando
+
 ```powershell
 git clone https://github.com/carlosj-moreno/plataform_site.git
 cd plataform_site
-
-Copy-Item deploy.config.example.ps1 deploy.config.ps1   # URLs reales (HTTPS); ajusta rama si hace falta
-Copy-Item .env.docker.example .env                       # secretos reales
-
-.\deploy.ps1        # clona/actualiza privados → docker compose up -d --build
 ```
+Luego **doble clic en `instalar.bat`** (o `powershell -ExecutionPolicy Bypass -File .\deploy.ps1`).
 
-**Linux:**
-```bash
-git clone https://github.com/carlosj-moreno/plataform_site.git
-cd plataform_site
-cp deploy.config.example.sh deploy.config.sh
-cp .env.docker.example .env
-./deploy.sh
+- **1ª vez:** crea `deploy.config.ps1` y `.env` (desde los `.example`) y los abre
+  para que los completes. Llénalos y vuelve a ejecutar.
+- **2ª vez:** clona/actualiza el código, copia el `.env`, crea el venv del backend
+  e instala dependencias, corre `migrate` + `collectstatic`, hace `npm ci` del
+  engine, construye el frontend, y **arranca los 3 procesos**.
+
+Al terminar: **http://localhost:8080**
+
+## Asignar los puertos
+
+En `deploy.config.ps1`:
+```powershell
+$BackendPort  = 8000     # Django (interno)
+$FrontendPort = 8080     # la URL que abres
+$EnginePort   = 3001     # interno
 ```
+La API y los documentos van **relativos** (mismo origen vía `serve.py`), así que
+funciona igual desde otra PC abriendo `http://<IP-del-servidor>:8080` — no hay que
+re-construir el frontend al cambiar de host. Si cambias los puertos, vuelve a
+correr `.\deploy.ps1` (o `.\native\local.ps1 stop` + `start`).
 
-> Los repos privados se clonan **dentro** de `Backend/bootwhatsapp/` y
-> `Frontend/bootwhatsapp_frontend/` (no en la raíz de `Backend/`/`Frontend/`),
-> porque la raíz de cada repo es directamente el proyecto Django / la app Vite.
-
-Re-desplegar tras un cambio: `.\deploy.ps1` / `./deploy.sh` (pull + rebuild).
-
-### Portátil entre máquinas/servidores: token en la config (recomendado)
-
-Para que cada máquina nueva clone **sola** (sin login en el navegador), pon un
-**GitHub Personal Access Token** (fine-grained, `Contents: Read-only` sobre los 2
-repos) en `deploy.config.ps1` / `deploy.config.sh`:
+## Manejo diario
 
 ```powershell
-$GitHubToken = "github_pat_xxx"   # Windows (deploy.config.ps1)
+.\native\local.ps1 status     # estado de los 3
+.\native\local.ps1 stop       # detener
+.\native\local.ps1 start      # arrancar
 ```
-```bash
-GITHUB_TOKEN="github_pat_xxx"     # Linux (deploy.config.sh)
+Logs en `logs\backend.err`, `logs\engine.err`, `logs\frontend.err`.
+
+> Son procesos normales: **se cierran al cerrar sesión / reiniciar Windows**.
+> Para volver a levantarlos: `.\native\local.ps1 start`.
+
+## Qué NO se sube (`.gitignore`)
+
+- `Backend/` y `Frontend/` (código privado), `.env`, `deploy.config.ps1`, `logs/`.
+
+## Mover a otro servidor
+
+1. Instala los requisitos (Git, Node, Python, PostgreSQL).
+2. `git clone` este repo (o copia la carpeta).
+3. Copia tu `.env` y `deploy.config.ps1` (con el token y los puertos) al servidor.
+4. Crea la BD en PostgreSQL (ver `GUIA_DESPLIEGUE.md` §3).
+5. Doble clic en `instalar.bat`.
+
+### Token para clonar sin login (recomendado en servidores)
+
+En `deploy.config.ps1` pon un **GitHub PAT** (fine-grained, `Contents: Read-only`):
+```powershell
+$GitHubToken = "github_pat_xxx"
 ```
-
-El script inyecta el token solo al clonar/actualizar y **no lo deja guardado** en
-`.git/config`. Como `deploy.config.*` está en `.gitignore`, el token no se sube.
-
-**Provisionar una máquina nueva** entonces es:
-```
-git clone https://github.com/carlosj-moreno/plataform_site.git
-# copiar deploy.config.(ps1|sh) + .env a esta máquina
-.\deploy.ps1   # o ./deploy.sh   → clona todo sin pedir nada
-```
-
-### Otras alternativas
-
-- **Sin token** — git pide login la primera vez (Credential Manager abre el
-  navegador en Windows) y lo cachea. Cómodo en una sola máquina con escritorio.
-- **Llave SSH (deploy key)** — cambia las URLs de `deploy.config.*` a
-  `git@github.com:...`. Una deploy key sirve para **un** repo; para dos, usa dos
-  llaves con bloques por host en `~/.ssh/config`, o una llave de cuenta con acceso
-  a ambos.
-
-Para la operación día a día (logs, migraciones, volúmenes, webhook de Meta)
-ver [docker/README.md](docker/README.md).
+Se usa solo al clonar y no queda guardado en `.git/config`.

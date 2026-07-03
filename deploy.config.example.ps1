@@ -1,4 +1,4 @@
-# ─────────────────────────────────────────────────────────────────────────────
+﻿# ─────────────────────────────────────────────────────────────────────────────
 # Configuración del despliegue (Windows / PowerShell).
 #   Copia este archivo a deploy.config.ps1 y edítalo:
 #     Copy-Item deploy.config.example.ps1 deploy.config.ps1
@@ -18,8 +18,8 @@ $FrontendRepo  = "https://github.com/carlosj-moreno/bootwhatsapp_frontend.git"
 $BackendBranch  = "develop"
 $FrontendBranch = "develop"
 
-# Carpetas destino — deben coincidir con el COPY de los Dockerfiles.
-# La raíz de cada repo es el proyecto en sí, por eso se clona un nivel adentro.
+# Carpetas destino. La raíz de cada repo es el proyecto en sí, por eso se clona
+# un nivel adentro. El engine vive en $FrontendDir\engine y el SPA en $FrontendDir\dist.
 $BackendDir   = "Backend/bootwhatsapp"
 $FrontendDir  = "Frontend/bootwhatsapp_frontend"
 
@@ -34,3 +34,12 @@ $GitHubToken = ""
 
 # (Opcional) Llave SSH específica. Vacío = usa la llave por defecto / ssh-agent.
 $SshKey = ""
+
+# ─── Puertos ─────────────────────────────────────────────────────────────────
+# Cambia estos números si los puertos están ocupados.
+# Solo se EXPONE el del frontend (8080); backend y engine quedan internos.
+# La API y los documentos van por el mismo origen (native\serve.py los reenvía),
+# así que abrir desde otra PC solo requiere http://<IP-del-servidor>:8080 + firewall.
+$BackendPort  = 8000     # Django (waitress) - interno
+$FrontendPort = 8080     # serve.py (SPA + proxy)  <- esta es la URL que abres
+$EnginePort   = 3001     # engine de WhatsApp - interno
