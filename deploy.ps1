@@ -57,11 +57,18 @@ if (-not (Get-Variable -Name ServerHost   -ValueOnly -ErrorAction SilentlyContin
 if ($SshKey) { $env:GIT_SSH_COMMAND = "ssh -i `"$SshKey`" -o IdentitiesOnly=yes" }
 if (-not (Get-Variable -Name GitHubToken -ValueOnly -ErrorAction SilentlyContinue)) { $GitHubToken = "" }
 
-function Get-AuthUrl($url) {
+# Auth de git sin embeber el PAT en la URL (auditoría B5). Antes se inyectaba
+# `https://x-access-token:$token@github.com/...`, dejando el token dentro de la
+# URL del remote y en cada `git fetch` (visible en args de proceso / logs). En su
+# lugar pasamos el token como cabecera Authorization efímera por-comando vía
+# `-c http.extraHeader=...`: nunca se persiste en el remote ni en la config.
+function Get-GitAuthArgs($url) {
     if ($GitHubToken -and $url -like "https://*") {
-        return ($url -replace '^https://', "https://x-access-token:$GitHubToken@")
+        $basic = [Convert]::ToBase64String(
+            [Text.Encoding]::ASCII.GetBytes("x-access-token:$GitHubToken"))
+        return @('-c', "http.extraHeader=Authorization: Basic $basic")
     }
-    return $url
+    return @()
 }
 
 $BackendPath  = Join-Path $Repo $BackendDir
@@ -112,18 +119,17 @@ if (Test-Path ".\native\local.ps1") {
 
 # ── 4. Clonar/actualizar los repos privados ──────────────────────────────────
 function Sync-Repo($repo, $branch, $dir) {
-    $auth = Get-AuthUrl $repo
+    $authArgs = Get-GitAuthArgs $repo
     if (Test-Path (Join-Path $dir ".git")) {
         Write-Host "-> Actualizando $dir ($branch)..." -ForegroundColor Cyan
-        git -C $dir fetch --depth 1 $auth $branch
+        git @authArgs -C $dir fetch --depth 1 $repo $branch
         if ($LASTEXITCODE -ne 0) { throw "git fetch fallo para $dir" }
         git -C $dir checkout -B $branch FETCH_HEAD
     } else {
         Write-Host "-> Clonando $repo -> $dir ($branch)..." -ForegroundColor Cyan
         if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
-        git clone --depth 1 --branch $branch $auth $dir
+        git @authArgs clone --depth 1 --branch $branch $repo $dir
         if ($LASTEXITCODE -ne 0) { throw "git clone fallo para $dir" }
-        if ($GitHubToken) { git -C $dir remote set-url origin $repo }
     }
     if ($LASTEXITCODE -ne 0) { throw "git fallo para $dir" }
 }

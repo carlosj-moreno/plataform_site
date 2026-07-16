@@ -82,8 +82,20 @@ function Start-Stack {
     # al backend. Mismo origen -> los documentos (/media) cargan sin proxy externo.
     $py = Join-Path $Backend ".venv\Scripts\python.exe"
     if (-not (Test-Path $py)) { $py = "python" }
+
+    # Coherencia TLS (auditoria M3): el proxy solo debe anunciar X-Forwarded-Proto:
+    # https cuando el trafico REALMENTE llega por TLS (tunel/Caddy/nginx delante).
+    # Si ENABLE_HTTPS no esta activo, el proxy sirve HTTP plano en la LAN, asi que
+    # anunciar "https" haria que Django emitiera cookies Secure/HSTS sobre HTTP.
+    # Derivamos el proto del .env en vez de hardcodear "https".
+    $enableHttps = (Get-EnvValue "ENABLE_HTTPS")
+    $fwdProto = if ($enableHttps -eq "True") { "https" } else { "http" }
+    if ($fwdProto -eq "http") {
+        Write-Host "   TLS off (ENABLE_HTTPS!=True): proxy anuncia http. Expon solo por tunel/proxy TLS." -ForegroundColor DarkYellow
+    }
+
     $f = Start-Process -FilePath $py `
-        -ArgumentList "$Repo\native\serve.py", "--port", "$FrontendPort", "--host", "0.0.0.0", "--backend", "127.0.0.1:$BackendPort", "--dist", "$Front\dist", "--forwarded-proto", "https" `
+        -ArgumentList "$Repo\native\serve.py", "--port", "$FrontendPort", "--host", "0.0.0.0", "--backend", "127.0.0.1:$BackendPort", "--dist", "$Front\dist", "--forwarded-proto", "$fwdProto" `
         -WorkingDirectory $Repo -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput "$LogDir\frontend.out" -RedirectStandardError "$LogDir\frontend.err"
 

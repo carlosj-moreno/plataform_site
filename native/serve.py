@@ -23,6 +23,10 @@ HOP = {"connection", "keep-alive", "transfer-encoding", "te", "trailer",
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8000
 DIST = ""
+# Tope del body proxeado (auditoría B6): evita que un Content-Length enorme
+# infle la RAM del proxy leyéndolo entero en memoria. 32 MB cubre subidas de
+# documentos/imágenes con margen; por encima se rechaza con 413.
+MAX_BODY_BYTES = 32 * 1024 * 1024
 # Esquema que este proxy anuncia al backend vía X-Forwarded-Proto. Django lo usa
 # (SECURE_PROXY_SSL_HEADER) para saber si el request original llegó por TLS.
 # - 'http'  (default): este proxy sirve HTTP plano. NO actives SECURE_SSL_REDIRECT
@@ -48,6 +52,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _proxy(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
+        if length > MAX_BODY_BYTES:
+            self.send_error(413, "payload demasiado grande")
+            return
         body = self.rfile.read(length) if length else None
         headers = {k: v for k, v in self.headers.items() if k.lower() not in HOP and k.lower() != "host"}
         headers["Host"] = f"{BACKEND_HOST}:{BACKEND_PORT}"
