@@ -24,6 +24,22 @@ function Get-EnvValue($file, $key) {
     return (($m.Matches[0].Groups[1].Value -replace '\s+#.*$', '').Trim())
 }
 
+# Endurecimiento de secretos (pentest jul-2026, HT-01): los archivos con
+# credenciales quedaban legibles por BUILTIN\Usuarios via herencia NTFS. Se
+# corta la herencia y solo quedan: Administradores, SYSTEM y la cuenta que
+# ejecuta el stack (la actual). SIDs fijos para que funcione en Windows en
+# cualquier idioma (S-1-5-32-544 = Administradores, S-1-5-18 = SYSTEM).
+function Protect-SecretFile($path) {
+    if (-not (Test-Path $path)) { return }
+    $me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    icacls $path /inheritance:r /grant:r "*S-1-5-32-544:(F)" "*S-1-5-18:(F)" "${me}:(R,W)" | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "-> Permisos restringidos: $path" -ForegroundColor DarkGray
+    } else {
+        Write-Host "!! No pude restringir permisos de $path (icacls fallo)." -ForegroundColor Yellow
+    }
+}
+
 # ── 0. Bootstrap: crear config/.env si faltan ────────────────────────────────
 $bootstrapped = $false
 if (-not (Test-Path ".\deploy.config.ps1")) {
@@ -45,6 +61,10 @@ if ($bootstrapped) {
 }
 
 # ── 1. Cargar configuración ──────────────────────────────────────────────────
+# Los dos archivos con secretos del repo raiz (HT-01): .env (credenciales de la
+# app) y deploy.config.ps1 (PAT de GitHub).
+Protect-SecretFile ".\.env"
+Protect-SecretFile ".\deploy.config.ps1"
 . .\deploy.config.ps1
 foreach ($v in "BackendRepo","FrontendRepo","BackendBranch","FrontendBranch","BackendDir","FrontendDir") {
     if (-not (Get-Variable -Name $v -ValueOnly -ErrorAction SilentlyContinue)) {
@@ -85,6 +105,17 @@ if ($missing.Count -gt 0) {
     $missing | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
     Start-Process notepad ".\.env" | Out-Null
     exit 1
+}
+
+# Aviso de secretos DEBILES (pentest jul-2026, HT-01/HT-02): contraseñas
+# triviales en produccion. No bloquea el deploy para no tumbar una operacion en
+# curso, pero lo avisa en rojo hasta que se roten.
+$weakValues = @("123456", "12345678", "admin", "password", "postgres", "changeme", "clave", "secret")
+foreach ($k in "DB_PASSWORD", "SECRET_KEY", "WHATSAPP_ENGINE_SECRET") {
+    $v = Get-EnvValue ".\.env" $k
+    if ($v -and (($weakValues -contains $v.ToLower()) -or ($v.Length -lt 12))) {
+        Write-Host "!! SEGURIDAD: $k en .env es debil ('$($v.Substring(0, [Math]::Min(2, $v.Length)))...'). Rotarlo YA (pentest HT-01)." -ForegroundColor Red
+    }
 }
 
 # ── 2. Comprobar herramientas (NO se instala nada; solo se avisa si falta) ────
@@ -138,6 +169,7 @@ Sync-Repo $FrontendRepo $FrontendBranch $FrontendDir
 
 # ── 5. Colocar el .env donde Django lo lee ───────────────────────────────────
 Copy-Item ".\.env" (Join-Path $BackendPath ".env") -Force
+Protect-SecretFile (Join-Path $BackendPath ".env")
 Write-Host "-> .env copiado a $BackendDir\.env" -ForegroundColor DarkGray
 if (Select-String -Path ".\.env" -Pattern "^\s*DB_HOST\s*=\s*host\.docker\.internal" -Quiet) {
     Write-Host "!! DB_HOST=host.docker.internal no resuelve sin Docker. Ponlo en localhost." -ForegroundColor Yellow

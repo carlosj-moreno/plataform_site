@@ -92,6 +92,27 @@ para visión de imágenes/facturas).
 
 > ⚠️ No regeneres `FERNET_KEY` si ya hay conexiones guardadas (rompe los tokens cifrados).
 
+### Protección de los secretos (pentest jul-2026, HT-01)
+
+`deploy.ps1` restringe automáticamente los permisos NTFS de `.env`,
+`deploy.config.ps1` y `Backend\bootwhatsapp\.env`: solo Administradores, SYSTEM
+y la cuenta que despliega pueden leerlos (antes cualquier usuario del servidor
+podía). No uses contraseñas triviales en `DB_PASSWORD` — el deploy avisa en rojo
+si detecta una débil.
+
+En el **servidor**, ejecutar además una vez como Administrador el endurecimiento
+completo (secretos + permisos de binarios de terceros + share SIIWIS):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\native\harden.ps1
+# y para el share SIIWIS (corta el acceso de "Todos"; indica quién SÍ debe entrar):
+powershell -ExecutionPolicy Bypass -File .\native\harden.ps1 -FixSiiwis -SiiwisAllowed "DOMINIO\GrupoContabilidad"
+```
+
+Al final imprime el checklist de lo manual: rotar `DB_PASSWORD` y los tokens de
+Meta, `manage.py changepassword admin`, Tamper Protection, parches del servidor
+de BD y `listen_addresses` de PostgreSQL.
+
 ---
 
 ## 6. Desplegar — un solo comando
