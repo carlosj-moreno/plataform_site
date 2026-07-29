@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Consultas asistidas RUNT + DIAN (La Principal)",
+  "version": "1.1.0",
+  "description": "Escribe sola la placa y tu documento en el RUNT, y el NIT en el catálogo de facturas de la DIAN (enviados desde el CRM): solo queda el captcha y el botón.",
+  "content_scripts": [
+    {
+      "matches": ["https://www.runt.gov.co/*", "https://runt.gov.co/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://catalogo-vpfe.dian.gov.co/User/SearchDocument*"],
+      "js": ["dian.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage"]
+}
