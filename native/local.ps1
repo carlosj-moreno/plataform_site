@@ -66,17 +66,48 @@ function Start-Stack {
     $env:CORS_ALLOWED_ORIGINS  = $origins
     $env:CSRF_TRUSTED_ORIGINS  = $origins
 
+    # Threads de waitress = techo de concurrencia real del backend (cada uno
+    # atiende una request Django a la vez). El default de waitress (4) y el 8
+    # anterior se saturaban con ~40 usuarios activos por el polling de la Bandeja.
+    # Configurable en deploy.config.ps1; 16 es un default holgado.
+    if (-not (Get-Variable -Name BackendThreads -ValueOnly -ErrorAction SilentlyContinue)) { $BackendThreads = 16 }
     $b = Start-Process -FilePath $waitress `
-        -ArgumentList "--listen=127.0.0.1:$BackendPort", "core.wsgi:application" `
+        -ArgumentList "--listen=127.0.0.1:$BackendPort", "--threads=$BackendThreads", "core.wsgi:application" `
         -WorkingDirectory $Backend -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput "$LogDir\backend.out" -RedirectStandardError "$LogDir\backend.err"
 
-    $env:ENGINE_SECRET = Get-EnvValue "WHATSAPP_ENGINE_SECRET"
-    $env:PORT = "$EnginePort"
-    $env:DJANGO_URL = "http://127.0.0.1:$BackendPort"
-    $e = Start-Process -FilePath "node" -ArgumentList "app.js" `
-        -WorkingDirectory (Join-Path $Front "engine") -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput "$LogDir\engine.out" -RedirectStandardError "$LogDir\engine.err"
+    # Recuperar fotos ANTIGUAS sueltas: al arrancar, barrer el histórico y
+    # adjuntar a su carro las fotos que quedaron en el chat sin asignarse (server
+    # caído, ráfaga desordenada, etc.) — "hay carros que no toma las fotos".
+    # Usa la MISMA lógica probada del "Auto-clasificar" (secciona por placa para
+    # no mezclar carros). Corre en segundo plano para no demorar el arranque.
+    # Se puede saltar con:  $env:SKIP_VEHICLE_BACKFILL = "1"
+    if ($env:SKIP_VEHICLE_BACKFILL -ne "1") {
+        $py0 = Join-Path $Backend ".venv\Scripts\python.exe"
+        if (-not (Test-Path $py0)) { $py0 = "python" }
+        Write-Host "Recuperando fotos antiguas de vehiculos (segundo plano)..." -ForegroundColor Cyan
+        Start-Process -FilePath $py0 `
+            -ArgumentList "manage.py", "retomar_fotos_vehiculos", "--apply" `
+            -WorkingDirectory $Backend -WindowStyle Hidden `
+            -RedirectStandardOutput "$LogDir\vehicle-backfill.out" `
+            -RedirectStandardError  "$LogDir\vehicle-backfill.err" | Out-Null
+    }
+
+    # Puentes de WhatsApp: deben estar conectados en UNA sola máquina (el
+    # SERVIDOR). Con el engine vinculado también aquí, cada mensaje se procesa
+    # y se PAGA doble (2026-07-29: día de ~$11 en Together por la duplicación).
+    # $env:SKIP_ENGINE = "1" arranca el stack SIN engine para desarrollo local.
+    $e = $null
+    if ($env:SKIP_ENGINE -ne "1") {
+        $env:ENGINE_SECRET = Get-EnvValue "WHATSAPP_ENGINE_SECRET"
+        $env:PORT = "$EnginePort"
+        $env:DJANGO_URL = "http://127.0.0.1:$BackendPort"
+        $e = Start-Process -FilePath "node" -ArgumentList "app.js" `
+            -WorkingDirectory (Join-Path $Front "engine") -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput "$LogDir\engine.out" -RedirectStandardError "$LogDir\engine.err"
+    } else {
+        Write-Host "   SKIP_ENGINE=1: engine NO arrancado (los puentes viven en el servidor)." -ForegroundColor DarkYellow
+    }
 
     # Frontend = servidor Python (stdlib): sirve dist\ y reenvia /api,/media,/static,/webhook
     # al backend. Mismo origen -> los documentos (/media) cargan sin proxy externo.
@@ -99,8 +130,9 @@ function Start-Stack {
         -WorkingDirectory $Repo -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput "$LogDir\frontend.out" -RedirectStandardError "$LogDir\frontend.err"
 
-    "$($b.Id) backend-waitress`n$($e.Id) engine-node`n$($f.Id) frontend-vite" | Out-File $PidFile
-    Write-Host ("Arrancado -> backend={0} engine={1} frontend={2}" -f $b.Id, $e.Id, $f.Id) -ForegroundColor Green
+    $eid = if ($e) { $e.Id } else { "-" }
+    "$($b.Id) backend-waitress`n$(if ($e) { "$($e.Id) engine-node`n" })$($f.Id) frontend-vite" | Out-File $PidFile
+    Write-Host ("Arrancado -> backend={0} engine={1} frontend={2}" -f $b.Id, $eid, $f.Id) -ForegroundColor Green
     Write-Host "   Abre: http://localhost:$FrontendPort   |   Logs: logs\*.out / *.err"
 }
 
@@ -113,6 +145,18 @@ function Stop-Stack {
     }
     # Por si quedó algún waitress huérfano:
     Get-Process waitress-serve -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    # Engines huérfanos de arranques anteriores: pids.txt solo recuerda el ÚLTIMO
+    # arranque, así que un start sin stop dejaba engines viejos vivos. Varios
+    # engines sobre el mismo perfil de Chrome se matan el navegador entre sí y
+    # la línea de WhatsApp se cae en bucle. Se barren por línea de comandos
+    # ("node app.js" es el engine; los vite/npm no matchean).
+    Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+        Where-Object { $_.CommandLine -match '(^|\s)"?app\.js"?\s*$' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    # Y los Chrome del engine que hayan quedado agarrando el perfil de sesión:
+    Get-CimInstance Win32_Process |
+        Where-Object { $_.Name -match 'chrome' -and $_.CommandLine -match 'session-conn_' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     Write-Host "Detenido." -ForegroundColor Yellow
 }
 
