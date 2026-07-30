@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-r"""Exporta a C:\FotosVehiculos\temporal UNA foto por posicion de cada ficha
-con fotos recientes (ultimos 2 dias) + la foto del formato de inventario.
+r"""Exporta a C:\FotosVehiculos\temporal UNA foto por posicion de TODAS las
+fichas con fotos (historico completo) + la foto del formato de inventario.
+Pedido del dueno 2026-07-30: "siempre" es siempre — sin ventana de tiempo,
+ninguna foto se queda sin exportar aunque el servidor pase dias apagado.
 
 Reglas pedidas por el dueno (2026-07-30):
   - UNA sola foto por posicion (ingreso manda; salida solo si esa posicion
@@ -30,7 +32,6 @@ from django.db.models import Count, Max
 from chat.models import VehicleEntry
 
 DESTINO = r"C:\FotosVehiculos\temporal"
-DIAS = 2
 CACHE_VERDICTOS = r"C:\BootWhatsapp\logs\exportar_fotos_cache.json"
 
 # ── Filtro de DOCUMENTOS (pedido del dueño 2026-07-30) ────────────────────────
@@ -79,10 +80,10 @@ MOMENTO_NOMBRE = {"ingreso": "entrada", "salida": "salida"}
 
 def main() -> int:
     os.makedirs(DESTINO, exist_ok=True)
-    desde = timezone.now() - timezone.timedelta(days=DIAS)
+    # TODAS las fichas con fotos — sin ventana de tiempo ("siempre" es siempre).
     entries = (VehicleEntry.objects
                .annotate(n_fotos=Count("photos"), ultima=Max("photos__created_at"))
-               .filter(ultima__gte=desde)
+               .filter(n_fotos__gt=0)
                .order_by("-ultima"))
 
     copiadas = 0
