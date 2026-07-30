@@ -31,6 +31,66 @@ from chat.models import VehicleEntry
 
 DESTINO = r"C:\FotosVehiculos\temporal"
 DIAS = 2
+CACHE_VERDICTOS = r"C:\BootWhatsapp\logs\exportar_fotos_cache.json"
+
+# ── Filtro de DOCUMENTOS (pedido del dueño 2026-07-30) ────────────────────────
+# A la carpeta solo van POSICIONES del carro: si una cédula, un oficio o un
+# papel quedó archivado por error en un cajón de ángulo, NO se exporta (y si ya
+# se había exportado, se borra). La detección es LOCAL y gratis (RapidOCR): una
+# foto del carro casi no tiene texto legible; una cédula/papel está lleno.
+_DOC_PALABRAS = (
+    'CEDULA', 'CIUDADANIA', 'REPUBLICA DE COLOMBIA', 'REGISTRADURIA',
+    'IDENTIFICACION PERSONAL', 'FECHA DE NACIMIENTO', 'LUGAR DE NACIMIENTO',
+    'GRUPO SANGUINEO', 'ESTATURA', 'NUIP',
+    'JUZGADO', 'OFICIO', 'FISCALIA', 'DEMANDA', 'SECUESTRE',
+    'FACTURA', 'LICENCIA DE TRANSITO', 'TARJETA DE PROPIEDAD', 'RUNT',
+    'INVENTARIO DE VEHICULO',
+)
+
+
+def _sin_tildes(s):
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', s)
+                   if unicodedata.category(c) != 'Mn')
+
+
+def _es_documento(path) -> bool:
+    """True si la foto es un DOCUMENTO (cédula/papel), no una toma del carro.
+    Señales: palabras típicas de documentos, o texto DENSO (muchos renglones
+    legibles largos — un carro no los tiene; el tablero da tokens cortos).
+    Ante fallo del OCR devuelve False (no perder una toma buena). Nunca lanza."""
+    try:
+        from chat.services.icr_service import icr_read
+        items = icr_read(path)
+    except Exception:
+        return False
+    if not items:
+        return False
+    legibles = [it for it in items
+                if it['score'] >= 0.6 and len(it['text']) >= 4
+                and any(c.isalpha() for c in it['text'])]
+    texto = _sin_tildes(' '.join(it['text'] for it in legibles)).upper()
+    if any(p in texto for p in _DOC_PALABRAS):
+        return True
+    return len(legibles) >= 12 or len(texto) >= 350
+
+
+def _cargar_cache() -> dict:
+    import json
+    try:
+        with open(CACHE_VERDICTOS, encoding='utf-8') as fh:
+            return json.load(fh)
+    except Exception:
+        return {}
+
+
+def _guardar_cache(cache) -> None:
+    import json
+    try:
+        with open(CACHE_VERDICTOS, 'w', encoding='utf-8') as fh:
+            json.dump(cache, fh)
+    except Exception:
+        pass
 
 # Mismo vocabulario de posiciones que ya usa la carpeta temporal.
 ANGULO_NOMBRE = {
@@ -53,6 +113,8 @@ def main() -> int:
 
     copiadas = 0
     fichas = 0
+    documentos_fuera = 0
+    cache = _cargar_cache()  # verdicto es_documento por VehiclePhoto.pk (las fotos no cambian)
     for e in entries:
         placa = (e.placa or "").upper() or "ID{}".format(e.pk)
         fichas += 1
@@ -73,6 +135,17 @@ def main() -> int:
                     placa, ANGULO_NOMBRE.get(angle, angle),
                     MOMENTO_NOMBRE.get(p.moment, p.moment), ext)
                 destino = os.path.join(DESTINO, nombre)
+                # ¿Es un documento (cédula/papel) mal archivado como posición?
+                clave = str(p.pk)
+                if clave not in cache:
+                    cache[clave] = _es_documento(origen)
+                if cache[clave]:
+                    documentos_fuera += 1
+                    if os.path.exists(destino):
+                        os.unlink(destino)  # ya se había exportado: fuera
+                    print("  DOCUMENTO fuera de la carpeta: {} ({})".format(
+                        nombre, ANGULO_NOMBRE.get(angle, angle)))
+                    continue
                 # Solo copiar si cambio (mismo tamano = misma foto: no re-copiar
                 # 1.000+ archivos cada 30 minutos).
                 if (not os.path.exists(destino)
@@ -100,8 +173,9 @@ def main() -> int:
         except Exception:
             pass
 
-    print("{:%Y-%m-%d %H:%M} | fichas revisadas={} | archivos nuevos/actualizados={}".format(
-        timezone.localtime(), fichas, copiadas))
+    _guardar_cache(cache)
+    print("{:%Y-%m-%d %H:%M} | fichas revisadas={} | archivos nuevos/actualizados={} | documentos excluidos={}".format(
+        timezone.localtime(), fichas, copiadas, documentos_fuera))
     return 0
 
 
