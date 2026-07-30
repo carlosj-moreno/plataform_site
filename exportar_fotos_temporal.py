@@ -36,43 +36,17 @@ CACHE_VERDICTOS = r"C:\BootWhatsapp\logs\exportar_fotos_cache.json"
 # ── Filtro de DOCUMENTOS (pedido del dueño 2026-07-30) ────────────────────────
 # A la carpeta solo van POSICIONES del carro: si una cédula, un oficio o un
 # papel quedó archivado por error en un cajón de ángulo, NO se exporta (y si ya
-# se había exportado, se borra). La detección es LOCAL y gratis (RapidOCR): una
-# foto del carro casi no tiene texto legible; una cédula/papel está lleno.
-_DOC_PALABRAS = (
-    'CEDULA', 'CIUDADANIA', 'REPUBLICA DE COLOMBIA', 'REGISTRADURIA',
-    'IDENTIFICACION PERSONAL', 'FECHA DE NACIMIENTO', 'LUGAR DE NACIMIENTO',
-    'GRUPO SANGUINEO', 'ESTATURA', 'NUIP',
-    'JUZGADO', 'OFICIO', 'FISCALIA', 'DEMANDA', 'SECUESTRE',
-    'FACTURA', 'LICENCIA DE TRANSITO', 'TARJETA DE PROPIEDAD', 'RUNT',
-    'INVENTARIO DE VEHICULO',
-)
-
-
-def _sin_tildes(s):
-    import unicodedata
-    return ''.join(c for c in unicodedata.normalize('NFD', s)
-                   if unicodedata.category(c) != 'Mn')
+# se había exportado, se borra). El criterio vive en el backend
+# (vehicle_intake.es_documento_papel — el MISMO guardián que ya impide
+# archivarlos): una sola fuente de verdad.
 
 
 def _es_documento(path) -> bool:
-    """True si la foto es un DOCUMENTO (cédula/papel), no una toma del carro.
-    Señales: palabras típicas de documentos, o texto DENSO (muchos renglones
-    legibles largos — un carro no los tiene; el tablero da tokens cortos).
-    Ante fallo del OCR devuelve False (no perder una toma buena). Nunca lanza."""
     try:
-        from chat.services.icr_service import icr_read
-        items = icr_read(path)
+        from chat.services.vehicle_intake import es_documento_papel
+        return es_documento_papel(path)
     except Exception:
         return False
-    if not items:
-        return False
-    legibles = [it for it in items
-                if it['score'] >= 0.6 and len(it['text']) >= 4
-                and any(c.isalpha() for c in it['text'])]
-    texto = _sin_tildes(' '.join(it['text'] for it in legibles)).upper()
-    if any(p in texto for p in _DOC_PALABRAS):
-        return True
-    return len(legibles) >= 12 or len(texto) >= 350
 
 
 def _cargar_cache() -> dict:
