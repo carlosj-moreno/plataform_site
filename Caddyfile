@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Caddyfile — sirve el SPA (build de Vite) y hace reverse-proxy al backend Django.
+# Reemplaza a docker/frontend/nginx.conf en el despliegue NATIVO de Windows.
+#
+# Caddy corre como servicio (bootwa-proxy vía NSSM) con working dir = raíz del
+# repo, por eso `root` usa una ruta RELATIVA a esa carpeta.
+#
+#   /healthz            → liveness
+#   /api,/media,/static → backend (waitress) en 127.0.0.1:8000
+#   /webhook            → backend (webhook de Meta, sin prefijo /api)
+#   /*                  → SPA con history fallback a index.html
+# ─────────────────────────────────────────────────────────────────────────────
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	encode gzip
+
+	# Subidas generosas de imágenes/PDF validadas por Vision (== client_max_body_size 25m)
+	request_body {
+		max_size 25MB
+	}
+
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	# ── Reverse-proxy al backend Django ─────────────────────────────────────────
+	# Caddy reenvía el Host original y agrega X-Forwarded-For/Proto/Host por
+	# defecto, y pasa TODOS los headers entrantes (incl. X-Hub-Signature-256).
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /media/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /static/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	# Webhook de Meta — mismo host, sin prefijo /api (ruta exacta)
+	handle /webhook {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# ── SPA: assets hasheados con cache largo; index.html siempre revalidado ────
+	handle {
+		root * Frontend/bootwhatsapp_frontend/dist
+
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=2592000, immutable"
+
+		@html path / /index.html
+		header @html Cache-Control "no-cache, no-store, must-revalidate"
+
+		try_files {path} /index.html
+		file_server
+	}
+}

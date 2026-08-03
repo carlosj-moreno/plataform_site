@@ -28,7 +28,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 
 from django.utils import timezone
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from chat.models import VehicleEntry
 
 DESTINO = r"C:\FotosVehiculos\temporal"
@@ -81,9 +81,13 @@ MOMENTO_NOMBRE = {"ingreso": "entrada", "salida": "salida"}
 def main() -> int:
     os.makedirs(DESTINO, exist_ok=True)
     # TODAS las fichas con fotos — sin ventana de tiempo ("siempre" es siempre).
+    # Tambien las que SOLO tienen formato de inventario (sin fotos de posiciones):
+    # su formato igual debe salir a la carpeta (pedido del dueno 2026-07-31).
+    con_formato = (Q(inventory_image__isnull=False) & ~Q(inventory_image="")) | \
+                  (Q(inventory_doc__isnull=False) & ~Q(inventory_doc=""))
     entries = (VehicleEntry.objects
                .annotate(n_fotos=Count("photos"), ultima=Max("photos__created_at"))
-               .filter(n_fotos__gt=0)
+               .filter(Q(n_fotos__gt=0) | con_formato)
                .order_by("-ultima"))
 
     copiadas = 0
@@ -140,7 +144,14 @@ def main() -> int:
                 src = e.inventory_doc.path
             if src and os.path.exists(src):
                 ext = os.path.splitext(src)[1].lower() or ".png"
-                destino = os.path.join(DESTINO, "{}_formato{}".format(placa, ext))
+                # El formato va con el mismo patron que las posiciones
+                # (pedido del dueno 2026-07-31): {PLACA}_inventario_inventario_entrada.{ext}
+                destino = os.path.join(
+                    DESTINO, "{}_inventario_inventario_entrada{}".format(placa, ext))
+                # Nombre anterior ({PLACA}_formato.{ext}): fuera para no duplicar.
+                viejo = os.path.join(DESTINO, "{}_formato{}".format(placa, ext))
+                if os.path.exists(viejo):
+                    os.unlink(viejo)
                 if (not os.path.exists(destino)
                         or os.path.getsize(destino) != os.path.getsize(src)):
                     shutil.copy2(src, destino)

@@ -52,6 +52,8 @@ db.sqlite3
 data_backup.json
 *.dump
 *.bak
+# Respaldos pre-migración (contienen volcados Django con clientes/mensajes/tokens):
+backups/
 
 # -----------------------------------------------------------------------------
 # 🤖 PROMPTS DE NEGOCIO (contenido generado por empresa/agente)
