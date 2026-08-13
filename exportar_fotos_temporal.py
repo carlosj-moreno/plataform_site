@@ -74,6 +74,8 @@ ANGULO_NOMBRE = {
     "motor": "motor", "interior_1": "interior1", "interior_2": "interior2",
     "interior_3": "interior3", "baul": "baul", "repuesto": "repuesto",
     "kilometraje": "kilometraje", "llaves": "llaves",
+    # Etiqueta del chasis (2026-08-12): sale como una posicion mas.
+    "vin": "vin",
 }
 MOMENTO_NOMBRE = {"ingreso": "entrada", "salida": "salida"}
 
