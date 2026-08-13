@@ -12,6 +12,7 @@ import argparse
 import http.client
 import mimetypes
 import os
+import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -34,6 +35,31 @@ MAX_BODY_BYTES = 32 * 1024 * 1024
 # - 'https': úsalo SOLO cuando haya un terminador TLS real por delante (nginx/
 #   Caddy/túnel) que ya sirva HTTPS a los clientes.
 FORWARDED_PROTO = "http"
+
+# Conexión persistente al backend, UNA por hilo del proxy (ThreadingHTTPServer
+# corre cada conexión de cliente en su propio hilo). Reutilizarla en vez de
+# abrir/cerrar una por request evita agotar los puertos efímeros de Windows:
+# antes cada petición dejaba un puerto en TIME_WAIT ~4 min y bajo carga el rango
+# (~16k) se acababa en segundos → WinError 10048 y cascada de 502.
+_tls = threading.local()
+
+
+def _backend_conn():
+    conn = getattr(_tls, "conn", None)
+    if conn is None:
+        conn = http.client.HTTPConnection(BACKEND_HOST, BACKEND_PORT, timeout=120)
+        _tls.conn = conn
+    return conn
+
+
+def _drop_backend_conn():
+    conn = getattr(_tls, "conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _tls.conn = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -64,14 +90,24 @@ class Handler(BaseHTTPRequestHandler):
         client_ip = self.client_address[0] if self.client_address else ""
         prior_xff = self.headers.get("X-Forwarded-For", "")
         headers["X-Forwarded-For"] = f"{prior_xff}, {client_ip}".strip(", ") if prior_xff else client_ip
-        try:
-            conn = http.client.HTTPConnection(BACKEND_HOST, BACKEND_PORT, timeout=120)
-            conn.request(self.command, self.path, body=body, headers=headers)
-            resp = conn.getresponse()
-            data = resp.read()
-        except Exception as e:  # backend caido
-            self.send_error(502, f"backend no responde: {e}")
-            return
+        # Reutilizamos la conexión persistente del hilo. Si el backend cerró su
+        # lado (keep-alive expirado, waitress recicló), el primer intento lanza
+        # una excepción de conexión: la descartamos y reabrimos UNA vez. El
+        # reintento solo es seguro porque el body ya está en memoria (lo leímos
+        # arriba), así que reenviar la misma request es idempotente aquí.
+        resp = data = None
+        for attempt in (1, 2):
+            try:
+                conn = _backend_conn()
+                conn.request(self.command, self.path, body=body, headers=headers)
+                resp = conn.getresponse()
+                data = resp.read()
+                break
+            except Exception as e:  # conexión rota o backend caído
+                _drop_backend_conn()
+                if attempt == 2:
+                    self.send_error(502, f"backend no responde: {e}")
+                    return
         self.send_response(resp.status)
         for k, v in resp.getheaders():
             if k.lower() in HOP:
@@ -81,7 +117,6 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(data)
-        conn.close()
 
     def _static(self):
         rel = urllib.parse.unquote(self._path()).lstrip("/")

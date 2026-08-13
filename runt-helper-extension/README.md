@@ -1,7 +1,24 @@
-# Consultas asistidas RUNT + DIAN (extensión de Chrome)
+# Consultas asistidas RUNT + DIAN + TYBA (extensión de Chrome)
 
 Extensión interna de La Principal para que las consultas en portales del
-Estado desde el CRM sean **solo captcha + botón**. Cubre dos portales:
+Estado desde el CRM sean **solo captcha + botón**. Cubre tres portales:
+
+## TYBA — Consulta de Procesos Judiciales (Rama Judicial, oficios)
+
+En TYBA (`procesojudicial.ramajudicial.gov.co` — Justicia XXI) hay que digitar
+el **departamento** y el **código del proceso**. Con la extensión instalada:
+
+1. En la ficha del vehículo, clic en **"Abrir TYBA (oficios)"** (tarjeta
+   Proceso judicial).
+2. El portal se abre con el **código del proceso ya escrito** (viaja en el
+   enlace) y el **departamento ya elegido** — la extensión lo deduce de los
+   2 primeros dígitos de la radicación (código DANE del departamento).
+3. El operador presiona **Consultar**, toma el pantallazo del resultado y lo
+   sube en la misma tarjeta con **"Pegar pantallazo"**.
+
+Sin la extensión, nada se rompe: el CRM copia el número de proceso al
+portapapeles al abrir el enlace — se pega a mano y el departamento se elige
+manualmente.
 
 ## Catálogo de facturas de la DIAN (verificación del CUFE)
 
@@ -50,10 +67,11 @@ por la que la consulta no puede ser 100 % automática.
 
 ## Notas
 
-- Solo actúa en `runt.gov.co` y en `catalogo-vpfe.dian.gov.co/User/SearchDocument`;
-  no lee ni toca ninguna otra página.
-- Si ya estaba instalada la versión RUNT: reemplazar la carpeta por esta y en
-  `chrome://extensions` presionar **Actualizar** (⟳) para que tome la DIAN.
+- Solo actúa en `runt.gov.co`, en `catalogo-vpfe.dian.gov.co/User/SearchDocument`
+  y en `procesojudicial.ramajudicial.gov.co`; no lee ni toca ninguna otra página.
+- Si ya estaba instalada una versión anterior: reemplazar la carpeta por esta y
+  en `chrome://extensions` presionar **Actualizar** (⟳) para que tome los
+  portales nuevos (v1.3.0 suma TYBA).
 - El documento del operador se guarda únicamente en ese equipo
   (`chrome.storage.local`), nunca viaja al CRM ni a terceros.
 - Si el RUNT rediseña su formulario y la placa deja de aparecer sola, la

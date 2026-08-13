@@ -47,7 +47,10 @@ function Start-Stack {
         Write-Host "Construyendo frontend (dist)..." -ForegroundColor Cyan
         Push-Location $Front
         try {
-            & npm run build *> "$LogDir\frontend-build.out"
+            # Via cmd /c: Vite escribe su progreso por stderr y, con
+            # ErrorActionPreference=Stop, la redireccion *> de PowerShell 5.1
+            # convertia esas lineas en una excepcion (falso "build fallo").
+            cmd /c "npm run build > `"$LogDir\frontend-build.out`" 2>&1"
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "  Build FALLO -> sirvo el dist anterior. Ver logs\frontend-build.out" -ForegroundColor Yellow
             } else {
