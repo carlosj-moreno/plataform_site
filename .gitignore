@@ -20,6 +20,7 @@ SYSTEM_SCOPE.md
 # Entradas de un-clic (SÍ se versionan):
 !instalar.bat
 !iniciar.bat
+!actualizar.bat
 deploy_prep.sh
 generar_despliegue.sh
 .kilo/
