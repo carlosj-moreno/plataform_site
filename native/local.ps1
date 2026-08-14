@@ -148,6 +148,13 @@ function Stop-Stack {
     }
     # Por si quedó algún waitress huérfano:
     Get-Process waitress-serve -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    # …y sus NIETOS python: waitress-serve.exe lanza python.exe → python.exe, y
+    # matar solo el exe deja al nieto vivo RETENIENDO el puerto 8000. Caso real
+    # 2026-08-14: dos waitress (código viejo y nuevo) compartieron el puerto y
+    # el backend respondía con código viejo de forma intermitente.
+    Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+        Where-Object { $_.CommandLine -match 'waitress-serve' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     # Engines huérfanos de arranques anteriores: pids.txt solo recuerda el ÚLTIMO
     # arranque, así que un start sin stop dejaba engines viejos vivos. Varios
     # engines sobre el mismo perfil de Chrome se matan el navegador entre sí y
@@ -159,6 +166,17 @@ function Stop-Stack {
     # Y los Chrome del engine que hayan quedado agarrando el perfil de sesión:
     Get-CimInstance Win32_Process |
         Where-Object { $_.Name -match 'chrome' -and $_.CommandLine -match 'session-conn_' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    # Backfills de fotos y serve.py huérfanos: cada start lanza un
+    # retomar_fotos_vehiculos en segundo plano que pids.txt NO recuerda; con
+    # arranques repetidos se acumulan (caso real 2026-08-14: NUEVE vivos, cada
+    # uno con cv2.pyd cargado → pip no podía reinstalar OpenCV y el deploy
+    # moría con WinError 5). Se barre TODO python del venv del backend y el
+    # serve.py del frontend (el waitress ya cayó arriba; esto no toca otros
+    # proyectos ni pythons del sistema).
+    Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+        Where-Object { $_.CommandLine -match 'Backend\\bootwhatsapp\\\.venv' -or
+                       $_.CommandLine -match 'native\\serve\.py' } |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     Write-Host "Detenido." -ForegroundColor Yellow
 }

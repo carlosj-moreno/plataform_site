@@ -128,6 +128,12 @@ class Handler(BaseHTTPRequestHandler):
         # startswith. El propio dist_root exacto no es un archivo, así que exigir
         # el separador no bloquea ningún caso legítimo.
         if not (fs.startswith(dist_root + os.sep) and os.path.isfile(fs)):
+            # /assets/ son archivos con hash de Vite: si no existe es porque un
+            # deploy los renombró. Responder 404 limpio (no index.html como si
+            # fuera JS) para que el cliente detecte el chunk viejo y recargue.
+            if rel.startswith("assets/"):
+                self.send_error(404, "asset de un build anterior")
+                return
             fs = os.path.join(dist_root, "index.html")
         ctype = mimetypes.guess_type(fs)[0] or "application/octet-stream"
         with open(fs, "rb") as f:
@@ -144,6 +150,9 @@ class Handler(BaseHTTPRequestHandler):
                              "max-age=31536000; includeSubDomains")
         if fs.endswith("index.html"):
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        elif rel.startswith("assets/"):
+            # El hash en el nombre cambia con cada build: cachear fuerte.
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(data)

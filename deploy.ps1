@@ -127,7 +127,11 @@ foreach ($tool in "git","node","npm") {
 }
 function Get-PythonCmd {
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3.14 -c "print(1)" *> $null
+        # Via cmd /c: este Python 3.14 imprime un aviso benigno ("Could not find
+        # platform independent libraries") por STDERR y, con ErrorActionPreference
+        # = Stop, la redireccion *> de PowerShell 5.1 lo convertia en excepcion
+        # (mismo gotcha ya documentado en el build de Vite de local.ps1).
+        cmd /c "py -3.14 -c ""print(1)"" >nul 2>&1"
         if ($LASTEXITCODE -eq 0) { return , @("py", "-3.14") }
         return , @("py")
     }
@@ -145,7 +149,9 @@ catch { Write-Host "!! PostgreSQL no responde en ${dbHost}:${dbPort} (instálalo
 
 # ── 3. Parar el stack si estaba corriendo (evita locks al reconstruir) ────────
 if (Test-Path ".\native\local.ps1") {
-    try { & powershell -ExecutionPolicy Bypass -File .\native\local.ps1 stop *> $null } catch {}
+    # cmd /c: el stop escribe por stderr y con Stop la redireccion *> abortaba
+    # el barrido a mitad (mismo gotcha del probe de Python de arriba).
+    try { cmd /c "powershell -ExecutionPolicy Bypass -File .\native\local.ps1 stop >nul 2>&1" } catch {}
 }
 
 # ── 4. Clonar/actualizar los repos privados ──────────────────────────────────
