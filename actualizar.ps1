@@ -7,9 +7,12 @@
 # Hace, en este orden:
 #   1. git pull en los TRES repos (raiz, backend, frontend)
 #   2. pip install / npm ci  -> SOLO si cambiaron requirements.txt o package.json
+#      (incluye las dependencias del PUENTE si cambio engine/package.json)
 #   3. migrate               -> muestra el plan y aplica lo pendiente
 #   4. npm run build         -> compila el frontend
-#   5. (pide UAC) respalda el sitio, reinicia el backend y publica la web
+#   5. (pide UAC) respalda el sitio, reinicia el backend, publica la web y,
+#      SOLO si el pull trajo cambios en engine/, reinicia el puente (la sesion
+#      de WhatsApp vive en .wwebjs_auth y sobrevive: la linea sigue vinculada)
 #
 # EL ORDEN IMPORTA: primero reinicia el backend y despues publica la web. Al
 # reves, la web nueva le pediria rutas de API que el backend viejo no tiene
@@ -19,7 +22,9 @@
 #   - respalda el sitio en una carpeta NUEVA con fecha antes de tocarlo
 #   - copia los assets ENCIMA; los viejos se quedan, asi no se rompe la pagina
 #     de quien la tenga abierta en ese momento
-#   - no toca web.config, ni la BD, ni el puente de WhatsApp, ni .wwebjs_auth
+#   - no toca web.config, ni la BD, ni .wwebjs_auth; el puente solo se
+#     reinicia cuando el pull trajo codigo nuevo de engine/ (antes quedaba
+#     corriendo el codigo VIEJO indefinidamente)
 #   - si algo falla, se detiene y deja la version anterior funcionando
 #
 # La plataforma se ve en:  https://api.loggingcar.com:8092
@@ -105,6 +110,32 @@ if ($SoloPublicar) {
     }
     Copy-Item (Join-Path $Dist "index.html") $Sitio -Force
     Bien "web publicada (web.config intacto)"
+
+    # -- Puente (engine): SOLO si su codigo cambio en este pull ---------------
+    # La fase 1 deja logs\engine-cambio.flag cuando el rango de commits toco
+    # engine/. Sin flag, el puente no se toca (filosofia de siempre). Con flag,
+    # se reinicia el servicio para que cargue el codigo nuevo: la sesion de
+    # WhatsApp vive en .wwebjs_auth y sobrevive — la linea sigue vinculada. Si
+    # el servicio no existe o algo falla, el vigilante (vigilar_puente.ps1) lo
+    # revive solo, y ahora el monitor de disponibilidad deja el registro.
+    $FlagEngine = Join-Path $LogDir "engine-cambio.flag"
+    if (Test-Path $FlagEngine) {
+        Paso "Reiniciando el PUENTE (su codigo cambio en este pull)"
+        $svcEngine = Get-Service -Name "bootwa-engine" -ErrorAction SilentlyContinue
+        if ($svcEngine) {
+            try { Restart-Service -Name "bootwa-engine" -Force -ErrorAction Stop } catch {}
+            $arribaE = $false
+            foreach ($i in 1..20) {
+                if (Puerto-Arriba 3001) { $arribaE = $true; break }
+                Start-Sleep -Seconds 2
+            }
+            if ($arribaE) { Bien "puente arriba con el codigo nuevo (linea sigue vinculada)" }
+            else { Mal "el puente no volvio al 3001 aun; el vigilante lo levantara en su proxima pasada" }
+        } else {
+            Nota "servicio bootwa-engine no registrado: el vigilante cargara el codigo nuevo al reciclarlo"
+        }
+        Remove-Item $FlagEngine -ErrorAction SilentlyContinue
+    }
 
     Paso "Verificacion"
     foreach ($p in @(@{n="Backend"; port=8000}, @{n="Puente WhatsApp"; port=3001}, @{n="IIS"; port=8092})) {
@@ -207,6 +238,36 @@ if ($pkgCambio) {
     Bien "dependencias de Node al dia"
 } else {
     Bien "Node: sin cambios"
+}
+
+# El PUENTE (engine) vive en Frontend\...\engine y es un proceso APARTE: el
+# pull le trae codigo nuevo pero el servicio sigue corriendo con el viejo.
+# Aqui solo se preparan sus dependencias; el REINICIO (si su codigo cambio)
+# lo hace la fase de Administrador. La sesion de WhatsApp vive en
+# .wwebjs_auth y sobrevive el reinicio: la linea NO se desvincula.
+$Engine = Join-Path $Front "engine"
+$engCambio = $false
+if ($rf.Antes -ne $rf.Despues) {
+    $ch = & $Git -C $Front diff --name-only "$($rf.Antes)..$($rf.Despues)" -- engine/
+    if ($ch) { $engCambio = $true }
+}
+if ($engCambio) {
+    $chPkg = & $Git -C $Front diff --name-only "$($rf.Antes)..$($rf.Despues)" -- engine/package.json engine/package-lock.json
+    if ($chPkg) {
+        Write-Host "   engine/package.json cambio: instalando..." -ForegroundColor Yellow
+        Push-Location $Engine
+        cmd /c "npm ci 2>&1" | Select-Object -Last 5
+        $okNpmE = ($LASTEXITCODE -eq 0)
+        Pop-Location
+        if (-not $okNpmE) { Mal "npm ci del engine fallo"; Stop-Transcript | Out-Null; Fin 1 }
+        Bien "dependencias del engine al dia"
+    }
+    Bien "el codigo del PUENTE cambio: se reiniciara su servicio al publicar"
+    # Marca para la fase de Administrador (proceso aparte, no comparte variables).
+    Set-Content -Path (Join-Path $LogDir "engine-cambio.flag") -Value (Get-Date -Format "s") -Encoding ascii
+} else {
+    Bien "Puente (engine): sin cambios (no se toca)"
+    Remove-Item (Join-Path $LogDir "engine-cambio.flag") -ErrorAction SilentlyContinue
 }
 
 # -- migraciones --------------------------------------------------------------
